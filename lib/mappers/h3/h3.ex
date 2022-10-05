@@ -1,6 +1,7 @@
 defmodule Mappers.H3 do
   alias Mappers.Repo
   alias Mappers.H3.Res9
+  alias Mappers.H3.Res12
   use MappersWeb, :controller
 
   def create(message) do
@@ -12,8 +13,13 @@ defmodule Mappers.H3 do
     h3_res9_id = :h3.from_geo({lat, lng}, 9)
     h3_res9_id_s = to_string(:h3.to_string(h3_res9_id))
 
+    # also find res12 index
+    h3_res12_id = :h3.from_geo({lat, lng}, 12)
+    h3_res12_id_s = to_string(:h3.to_string(h3_res12_id))
+
     # get current hex if it exist
     res9_temp = Repo.get(Res9, h3_res9_id_s)
+    res12_temp = Repo.get(Res12, h3_res12_id_s)
 
     # create list of rssi's with snr
     rssi_snr_list =
@@ -86,7 +92,7 @@ defmodule Mappers.H3 do
         poly = :h3.to_geo_boundary(h3_res9_id)
         poly_length = length(poly)
 
-        result =
+        res9_result =
           cond do
             poly_length == 5 ->
               res9 =
@@ -289,8 +295,259 @@ defmodule Mappers.H3 do
           body: %{id: h3_res9_id, id_string: h3_res9_id_s, best_rssi: rssi, snr: snr}
         })
 
-        result
+        res9_result
       end
     end
+
+
+    if res12_temp != nil do
+      # record existing h3 res12 metric
+      :telemetry.execute([:ingest, :h3, :res12, :existing], %{h3_res12_id: h3_res12_id_s}, message)
+
+      # get best rssi with snr
+      {best_new_rssi, _} = best_new_rssi_pair
+      {_, best_new_snr} = best_new_rssi_pair
+
+      best_rssi =
+        if best_new_rssi > res12_temp.best_rssi do
+          best_new_rssi
+        else
+          res12_temp.best_rssi
+        end
+
+      snr =
+        if best_new_rssi > res12_temp.best_rssi do
+          best_new_snr
+        else
+          res12_temp.snr
+        end
+
+      res12_temp
+      |> Ecto.Changeset.change(%{best_rssi: best_rssi})
+      |> Ecto.Changeset.change(%{snr: snr})
+      |> Repo.update()
+      |> case do
+        {:ok, changeset} -> {:ok, changeset}
+        {:error, _} -> {:error, "H3 Update Error"}
+      end
+    else
+      if :h3.is_valid(h3_res12_id) do
+        # record new h3 res12 metric
+        :telemetry.execute([:ingest, :h3, :res12, :new], %{h3_res12_id: h3_res12_id_s}, message)
+
+        {rssi, _} = best_new_rssi_pair
+        {_, snr} = best_new_rssi_pair
+
+        poly = :h3.to_geo_boundary(h3_res12_id)
+        poly_length = length(poly)
+
+        res12_result =
+          cond do
+            poly_length == 5 ->
+              res12 =
+                %{}
+                |> Map.put(:id, h3_res12_id_s)
+                |> Map.put(:h3_index_int, h3_res12_id)
+                |> Map.put(:state, "mapped")
+                |> Map.put(:best_rssi, rssi)
+                |> Map.put(:snr, snr)
+                |> Map.put(:geom, %Geo.Polygon{
+                  coordinates: [
+                    [
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)},
+                      {elem(Enum.at(poly, 1), 1), elem(Enum.at(poly, 1), 0)},
+                      {elem(Enum.at(poly, 2), 1), elem(Enum.at(poly, 2), 0)},
+                      {elem(Enum.at(poly, 3), 1), elem(Enum.at(poly, 3), 0)},
+                      {elem(Enum.at(poly, 4), 1), elem(Enum.at(poly, 4), 0)},
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)}
+                    ]
+                  ],
+                  srid: 4326
+                })
+
+              %Res12{}
+              |> Res12.changeset(res9)
+              |> Repo.insert()
+              |> case do
+                {:ok, changeset} -> {:ok, changeset}
+                {:error, _} -> {:error, "H3 Insert Error"}
+              end
+
+            poly_length == 6 ->
+              res12 =
+                %{}
+                |> Map.put(:id, h3_res12_id_s)
+                |> Map.put(:h3_index_int, h3_res12_id)
+                |> Map.put(:state, "mapped")
+                |> Map.put(:best_rssi, rssi)
+                |> Map.put(:snr, snr)
+                |> Map.put(:geom, %Geo.Polygon{
+                  coordinates: [
+                    [
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)},
+                      {elem(Enum.at(poly, 1), 1), elem(Enum.at(poly, 1), 0)},
+                      {elem(Enum.at(poly, 2), 1), elem(Enum.at(poly, 2), 0)},
+                      {elem(Enum.at(poly, 3), 1), elem(Enum.at(poly, 3), 0)},
+                      {elem(Enum.at(poly, 4), 1), elem(Enum.at(poly, 4), 0)},
+                      {elem(Enum.at(poly, 5), 1), elem(Enum.at(poly, 5), 0)},
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)}
+                    ]
+                  ],
+                  srid: 4326
+                })
+
+              %Res12{}
+              |> Res12.changeset(res12)
+              |> Repo.insert()
+              |> case do
+                {:ok, changeset} -> {:ok, changeset}
+                {:error, _} -> {:error, "H3 Insert Error"}
+              end
+
+            poly_length == 7 ->
+              res12 =
+                %{}
+                |> Map.put(:id, h3_res12_id_s)
+                |> Map.put(:h3_index_int, h3_res12_id)
+                |> Map.put(:state, "mapped")
+                |> Map.put(:best_rssi, rssi)
+                |> Map.put(:snr, snr)
+                |> Map.put(:geom, %Geo.Polygon{
+                  coordinates: [
+                    [
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)},
+                      {elem(Enum.at(poly, 1), 1), elem(Enum.at(poly, 1), 0)},
+                      {elem(Enum.at(poly, 2), 1), elem(Enum.at(poly, 2), 0)},
+                      {elem(Enum.at(poly, 3), 1), elem(Enum.at(poly, 3), 0)},
+                      {elem(Enum.at(poly, 4), 1), elem(Enum.at(poly, 4), 0)},
+                      {elem(Enum.at(poly, 5), 1), elem(Enum.at(poly, 5), 0)},
+                      {elem(Enum.at(poly, 6), 1), elem(Enum.at(poly, 6), 0)},
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)}
+                    ]
+                  ],
+                  srid: 4326
+                })
+
+              %Res12{}
+              |> Res12.changeset(res9)
+              |> Repo.insert()
+              |> case do
+                {:ok, changeset} -> {:ok, changeset}
+                {:error, _} -> {:error, "H3 Insert Error"}
+              end
+
+            poly_length == 8 ->
+              res12 =
+                %{}
+                |> Map.put(:id, h3_res12_id_s)
+                |> Map.put(:h3_index_int, h3_res12_id)
+                |> Map.put(:state, "mapped")
+                |> Map.put(:best_rssi, rssi)
+                |> Map.put(:snr, snr)
+                |> Map.put(:geom, %Geo.Polygon{
+                  coordinates: [
+                    [
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)},
+                      {elem(Enum.at(poly, 1), 1), elem(Enum.at(poly, 1), 0)},
+                      {elem(Enum.at(poly, 2), 1), elem(Enum.at(poly, 2), 0)},
+                      {elem(Enum.at(poly, 3), 1), elem(Enum.at(poly, 3), 0)},
+                      {elem(Enum.at(poly, 4), 1), elem(Enum.at(poly, 4), 0)},
+                      {elem(Enum.at(poly, 5), 1), elem(Enum.at(poly, 5), 0)},
+                      {elem(Enum.at(poly, 6), 1), elem(Enum.at(poly, 6), 0)},
+                      {elem(Enum.at(poly, 7), 1), elem(Enum.at(poly, 7), 0)},
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)}
+                    ]
+                  ],
+                  srid: 4326
+                })
+
+              %Res12{}
+              |> Res12.changeset(res9)
+              |> Repo.insert()
+              |> case do
+                {:ok, changeset} -> {:ok, changeset}
+                {:error, _} -> {:error, "H3 Insert Error"}
+              end
+
+            poly_length == 9 ->
+              res12 =
+                %{}
+                |> Map.put(:id, h3_res12_id_s)
+                |> Map.put(:h3_index_int, h3_res12_id)
+                |> Map.put(:state, "mapped")
+                |> Map.put(:best_rssi, rssi)
+                |> Map.put(:snr, snr)
+                |> Map.put(:geom, %Geo.Polygon{
+                  coordinates: [
+                    [
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)},
+                      {elem(Enum.at(poly, 1), 1), elem(Enum.at(poly, 1), 0)},
+                      {elem(Enum.at(poly, 2), 1), elem(Enum.at(poly, 2), 0)},
+                      {elem(Enum.at(poly, 3), 1), elem(Enum.at(poly, 3), 0)},
+                      {elem(Enum.at(poly, 4), 1), elem(Enum.at(poly, 4), 0)},
+                      {elem(Enum.at(poly, 5), 1), elem(Enum.at(poly, 5), 0)},
+                      {elem(Enum.at(poly, 6), 1), elem(Enum.at(poly, 6), 0)},
+                      {elem(Enum.at(poly, 7), 1), elem(Enum.at(poly, 7), 0)},
+                      {elem(Enum.at(poly, 8), 1), elem(Enum.at(poly, 8), 0)},
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)}
+                    ]
+                  ],
+                  srid: 4326
+                })
+
+              %Res12{}
+              |> Res12.changeset(res9)
+              |> Repo.insert()
+              |> case do
+                {:ok, changeset} -> {:ok, changeset}
+                {:error, _} -> {:error, "H3 Insert Error"}
+              end
+
+            poly_length == 10 ->
+              res12 =
+                %{}
+                |> Map.put(:id, h3_res12_id_s)
+                |> Map.put(:h3_index_int, h3_res12_id)
+                |> Map.put(:state, "mapped")
+                |> Map.put(:best_rssi, rssi)
+                |> Map.put(:snr, snr)
+                |> Map.put(:geom, %Geo.Polygon{
+                  coordinates: [
+                    [
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)},
+                      {elem(Enum.at(poly, 1), 1), elem(Enum.at(poly, 1), 0)},
+                      {elem(Enum.at(poly, 2), 1), elem(Enum.at(poly, 2), 0)},
+                      {elem(Enum.at(poly, 3), 1), elem(Enum.at(poly, 3), 0)},
+                      {elem(Enum.at(poly, 4), 1), elem(Enum.at(poly, 4), 0)},
+                      {elem(Enum.at(poly, 5), 1), elem(Enum.at(poly, 5), 0)},
+                      {elem(Enum.at(poly, 6), 1), elem(Enum.at(poly, 6), 0)},
+                      {elem(Enum.at(poly, 7), 1), elem(Enum.at(poly, 7), 0)},
+                      {elem(Enum.at(poly, 8), 1), elem(Enum.at(poly, 8), 0)},
+                      {elem(Enum.at(poly, 9), 1), elem(Enum.at(poly, 9), 0)},
+                      {elem(Enum.at(poly, 0), 1), elem(Enum.at(poly, 0), 0)}
+                    ]
+                  ],
+                  srid: 4326
+                })
+
+              %Res12{}
+              |> Res12.changeset(res9)
+              |> Repo.insert()
+              |> case do
+                {:ok, changeset} -> {:ok, changeset}
+                {:error, _} -> {:error, "H3 Insert Error"}
+              end
+          end
+
+        # broadcast new hex on channel
+        MappersWeb.Endpoint.broadcast!("h3:new", "new_h3", %{
+          body: %{id: h3_res12_id, id_string: h3_res12_id_s, best_rssi: rssi, snr: snr}
+        })
+
+        res12_result
+      end
+    end
+
+
   end
 end

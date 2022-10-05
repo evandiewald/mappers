@@ -2,10 +2,11 @@ defmodule Mappers.H3.Links do
   alias Mappers.Repo
   alias Mappers.H3.Links.Link
 
-  def create(h3_res9_id, uplink_id) do
+  def create(h3_res9_id, h3_res12_id, uplink_id) do
     link = %{}
       |> Map.put(:uplink_id, uplink_id)
       |> Map.put(:h3_res9_id, h3_res9_id)
+      |> Map.put(:h3_res12_id, h3_res12_id)
 
     %Link{}
     |> Link.changeset(link)

@@ -31,8 +31,9 @@ defmodule Mappers.Ingest do
           {:error, reason} ->
             %{error: reason}
 
-          {:ok, h3_res9} ->
+          {:ok, h3_res9, h3_res12} ->
             h3_res9_id = h3_res9.id
+            h3_res12_id = h3_res12.id
 
             # create uplink record
             Uplinks.create(message)
@@ -51,7 +52,7 @@ defmodule Mappers.Ingest do
 
                   {:ok, uplinks_heard} ->
                     # create h3/uplink link
-                    Links.create(h3_res9_id, uplink_id)
+                    Links.create(h3_res9_id, h3_res12_id, uplink_id)
                     |> case do
                       {:error, reason} ->
                         %{error: reason}
