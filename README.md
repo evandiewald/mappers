@@ -49,3 +49,13 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 To Reset Database
 
   * Run `mix ecto.reset`
+
+
+## Evan note - 
+If you have trouble with the docker version of martin (weird YAML errors?), download the release executable for your OS from [here](https://github.com/maplibre/martin).
+
+Untar and `chmod +x martin`, then run directly with something like:
+
+`./martin --config ~/mappers/docker-martin/config.yaml`
+
+Make sure to update the tileserver address in `assets/js/components/Map.js` to the server's IP and have port 3500 open. 
